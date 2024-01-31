@@ -18,17 +18,25 @@ func AddExtraConstraint(x string) {
 	extraCnsts = append(extraCnsts, x)
 }
 
-func extract(x string) string {
+func Extract(x frontend.Variable) string {
 	r, _ := regexp.Compile("^\\[{([0-9]+)")
-	return r.FindStringSubmatch(x)[1]
+	return r.FindStringSubmatch(fmt.Sprint(x))[1]
 }
 
-func AnnotateVarIn(v frontend.Variable) {
-	fmt.Fprintf(fInfo, "(in %v)\n", extract(fmt.Sprint(v)))
+func CircuitVarIn(v frontend.Variable) {
+	fmt.Fprintf(fInfo, "(in %v)\n", Extract(v))
 }
 
-func AnnotateVarOut(v frontend.Variable) {
-	fmt.Fprintf(fInfo, "(out %v)\n", extract(fmt.Sprint(v)))
+func CircuitVarOut(v frontend.Variable) {
+	fmt.Fprintf(fInfo, "(out %v)\n", Extract(v))
+}
+
+func CircuitNamedVarIn(v frontend.Variable, name string) {
+	fmt.Fprintf(fInfo, "(in %v %v)\n", Extract(v), name)
+}
+
+func CircuitNamedVarOut(v frontend.Variable, name string) {
+	fmt.Fprintf(fInfo, "(out %v %v)\n", Extract(v), name)
 }
 
 func CompilePicus(name string, circuit frontend.Circuit) {
