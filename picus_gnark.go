@@ -31,12 +31,8 @@ func CircuitVarOut(v frontend.Variable) {
 	fmt.Fprintf(fInfo, "(out %v)\n", Extract(v))
 }
 
-func CircuitNamedVarIn(v frontend.Variable, name string) {
-	fmt.Fprintf(fInfo, "(in %v %v)\n", Extract(v), name)
-}
-
-func CircuitNamedVarOut(v frontend.Variable, name string) {
-	fmt.Fprintf(fInfo, "(out %v %v)\n", Extract(v), name)
+func Label(v frontend.Variable, name string) {
+	fmt.Fprintf(fInfo, "(label %v %v)\n", Extract(v), name)
 }
 
 func CompilePicus(name string, circuit frontend.Circuit) {
