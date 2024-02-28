@@ -36,12 +36,12 @@ func Label(v frontend.Variable, name string) {
 }
 
 func CompilePicus(name string, circuit frontend.Circuit) {
+	extraCnsts = []string{}
 	fTmp, _ := os.Create(name + ".sr1cs")
 	fInfo = fTmp
 	defer fInfo.Close()
 
 	r1cs, _ := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, circuit)
-	fmt.Fprintf(fInfo, "(num-wires %v)\n", r1cs.GetNbSecretVariables()+r1cs.GetNbPublicVariables()+r1cs.GetNbInternalVariables())
 	fmt.Fprintf(fInfo, "(prime-number %v)\n", r1cs.Field())
 
 	for _, x := range extraCnsts {
