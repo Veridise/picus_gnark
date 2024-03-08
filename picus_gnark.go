@@ -2,50 +2,67 @@ package picus_gnark
 
 import (
 	"fmt"
+	"math/big"
 	"os"
 	"regexp"
 
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 )
 
-var fInfo *os.File
 var extraCnsts []string
+var varIns []string
+var varOuts []string
+var labels [][2]string
 
 func AddExtraConstraint(x string) {
 	extraCnsts = append(extraCnsts, x)
 }
 
 func Extract(x frontend.Variable) string {
-	r, _ := regexp.Compile("^\\[{([0-9]+)")
+	r, _ := regexp.Compile(`^\[{([0-9]+)`)
 	return r.FindStringSubmatch(fmt.Sprint(x))[1]
 }
 
 func CircuitVarIn(v frontend.Variable) {
-	fmt.Fprintf(fInfo, "(in %v)\n", Extract(v))
+	varIns = append(varIns, Extract(v))
 }
 
 func CircuitVarOut(v frontend.Variable) {
-	fmt.Fprintf(fInfo, "(out %v)\n", Extract(v))
+	varOuts = append(varOuts, Extract(v))
 }
 
 func Label(v frontend.Variable, name string) {
-	fmt.Fprintf(fInfo, "(label %v %v)\n", Extract(v), name)
+	labels = append(labels, [2]string{Extract(v), name})
 }
 
-func CompilePicus(name string, circuit frontend.Circuit) {
+func CompilePicus(name string, circuit frontend.Circuit, field *big.Int) {
 	extraCnsts = []string{}
-	fTmp, _ := os.Create(name + ".sr1cs")
-	fInfo = fTmp
+	varIns = []string{}
+	varOuts = []string{}
+	labels = [][2]string{}
+
+	fInfo, _ := os.Create(name + ".sr1cs")
 	defer fInfo.Close()
 
-	r1cs, _ := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, circuit)
+	r1cs, _ := frontend.Compile(field, r1cs.NewBuilder, circuit)
 	fmt.Fprintf(fInfo, "(prime-number %v)\n", r1cs.Field())
 
+	for _, x := range varIns {
+		fmt.Fprintf(fInfo, "(in %v)\n", x)
+	}
+
+	for _, x := range varOuts {
+		fmt.Fprintf(fInfo, "(out %v)\n", x)
+	}
+
+	for _, x := range labels {
+		fmt.Fprintf(fInfo, "(label %v %v)\n", x[0], x[1])
+	}
+
 	for _, x := range extraCnsts {
-		fmt.Fprintf(fInfo, "%v", x)
+		fmt.Fprintf(fInfo, "(extra-constraint %v)\n", x)
 	}
 
 	nR1CS, ok := r1cs.(constraint.R1CS)

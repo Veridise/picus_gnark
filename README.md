@@ -1,8 +1,8 @@
 # gnark support for Picus
 
-[Picus](https://docs.veridise.tools/picus/) supports gnark, but it requires users to manually annotate 
+[Picus](https://github.com/Veridise/Picus) supports gnark, but it requires users to manually annotate 
 some metadata to extract constraints into a format that we call `sr1cs`. 
-This documentation details the constraint extraction.
+This documentation details the constraint extraction along with the `sr1cs` format.
 
 ## Step-by-step instructions
 
@@ -17,13 +17,14 @@ package main
 
 import (
 	"github.com/Veridise/picus_gnark"
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 )
 
 func main() {
 	var circuit <PUT-THE-CIRCUIT-TYPE-HERE>
 
-	picus_gnark.CompilePicus("circuit", &circuit)
+	picus_gnark.CompilePicus("circuit", &circuit, ecc.BN254.ScalarField())
 }
 
 // circuit-specific details start here
@@ -89,12 +90,13 @@ package main
 
 import (
 	"github.com/Veridise/picus_gnark"
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 )
 
 func main() {
 	var circuit MyCircuit
-	picus_gnark.CompilePicus("circuit", &circuit)
+	picus_gnark.CompilePicus("circuit", &circuit, ecc.BN254.ScalarField())
 }
 
 type MyCircuit struct {
@@ -123,12 +125,11 @@ Running `go run picus.go` should produce the following result:
 along with the `circuit.sr1cs` file:
 
 ```
+(prime-number 21888242871839275222246405745257275088548364400416034343698204186575808495617)
 (in 1)
 (out 2)
 (label 1 X)
 (label 2 Y)
-(num-wires 5)
-(prime-number 21888242871839275222246405745257275088548364400416034343698204186575808495617)
 (constraint [(1 1) ] [(1 1) ] [(1 3) ])
 (constraint [(1 3) ] [(1 1) ] [(1 4) ])
 (constraint [(1 0) ] [(1 2) ] [(5 0) (1 1) (1 4) ])
@@ -175,3 +176,25 @@ Counterexample:
     3: 1
 Exiting Picus with the code 9
 ```
+
+## sr1cs format 
+
+As of now, the S-expression R1CS format has the following grammar:
+
+```
+(prime-number <prime-number>)
+(in <signal-number>) ...
+(out <signal-number>) ...
+(label <signal-number> <identifier>) ...
+(constraint [(<coeff> <signal-number>) ...]
+            [(<coeff> <signal-number>) ...]
+            [(<coeff> <signal-number>) ...]) ...
+```
+
+- The `prime-number` clause indicates the field size.
+- The `in` clauses indicate the input signals of the circuit.
+- The `out` clauses indicate the output signals of the circuit, and Picus will prove or find a counterexample if the output variables are properly constrained (not under-constrained).
+- The `label` clauses are optional. They provide readable names for the signals.
+- The `constraint` clauses are the R1CS constraints. Each constraint has three blocks: L, R, and O. Each block consists of a list of pairs of a coefficient and a signal.
+
+The sr1cs format is not yet finalized, and could be arbitrarily changed without preserving backward compatibility.
