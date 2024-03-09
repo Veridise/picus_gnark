@@ -1,8 +1,14 @@
 # gnark support for Picus
 
-[Picus](https://github.com/Veridise/Picus) supports gnark, but it requires users to manually annotate 
+[Picus](https://github.com/Veridise/Picus) supports gnark (for R1CS constraints),
+but it requires users to manually annotate 
 some metadata to extract constraints into a format that we call `sr1cs`. 
 This documentation details the constraint extraction along with the `sr1cs` format.
+
+## Requirements
+
+1. Go and gnark [installation](https://docs.gnark.consensys.io/HowTo/get_started) (tested with Go 1.21.5 and gnark v0.9.1) 
+2. Picus [installation](https://www.github.com/veridise/picus)
 
 ## Step-by-step instructions
 
