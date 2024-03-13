@@ -1,7 +1,9 @@
 # gnark support for Picus
 
-[Picus](https://github.com/Veridise/Picus) supports gnark (for R1CS constraints),
-but it requires users to manually annotate 
+[Picus](https://github.com/Veridise/Picus), 
+which is a verification tool to determine if a circuit is deterministic, 
+supports gnark (for R1CS constraints).
+However, it requires users to manually annotate 
 some metadata to extract constraints into a format that we call `sr1cs`. 
 This documentation details the constraint extraction along with the `sr1cs` format.
 
@@ -10,56 +12,25 @@ This documentation details the constraint extraction along with the `sr1cs` form
 1. Go and gnark [installation](https://docs.gnark.consensys.io/HowTo/get_started) (tested with Go 1.21.5 and gnark v0.9.1) 
 2. Picus [installation](https://www.github.com/veridise/picus)
 
-## Step-by-step instructions
+## `picus_gnark` workflow
 
-There are two steps to extract constraints into the `sr1cs` format:
+The overall workflow to run Picus on a gnark circuit consists of two parts: we first generate `sr1cs` constraints that correspond to the circuit, and then run Picus on the generated sr1cs.
+There are multiple steps to generate `sr1cs` constraints.
+We will use the `MyCircuit` example circuit from the [gnark tutorial](https://docs.gnark.consensys.io/HowTo/write/circuit_api) as a running example, 
+to demonstrate how one could verify that `MyCircuit` is deterministic.
 
-### Step 1: entrypoint file
+### Annotate input and output signals
 
-Create an entry point, say, `picus.go` with the following content:
+Make a modification to the circuit's corresponding `Define` function to annotate which signals are inputs and which are output. 
+This is needed because Picus checks if a circuit is deterministic and so it must know which signals are inputs/outputs.
+To annotate, we will use the following functions that `picus_gnark` provides.
 
-```go
-package main
+- The functions `picus_gnark.CircuitVarIn` and `picus_gnark.CircuitVarOut` are used to mark the signals as inputs or outputs and should be called on every input and output `frontend.Variable` signal in the circuit. 
+- Optionally, the `picus_gnark.Label` function can be used to assign certain signals concrete names to help interpret the counterexamples produced by Picus as you will see later.
 
-import (
-	"github.com/Veridise/picus_gnark"
-	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/frontend"
-)
+For example, the `MyCircuit` example circuit originally has the following definition:
 
-func main() {
-	var circuit <PUT-THE-CIRCUIT-TYPE-HERE>
-
-	picus_gnark.CompilePicus("circuit", &circuit, ecc.BN254.ScalarField())
-}
-
-// circuit-specific details start here
-
-type <PUT-THE-CIRCUIT-TYPE-HERE> struct {
-	...
-}
-
-func ... Define(api frontend.API) error {
-	...
-}
-```
-
-where `<PUT-THE-CIRCUIT-TYPE-HERE>` should be replaced with the circuit type that we wish to verify, and the section after 
-`// circuit-specific details start here` should be replaced with the circuit implementation.
-
-### Step 2: annotate inputs and outputs
-
-Use the function `picus_gnark.CircuitVarIn` or `picus_gnark.CircuitVarOut` with 
-a `frontend.Variable` to annotate that the variable should be treated as an input/output of the circuit.
-These functions can be called multiple times.
-Optionally, use the function `picus_gnark.Label` to annotate a variable name.
-
-## Examples
-
-Let's say that we want to verify that the following `MyCircuit` circuit from the [gnark tutorial](https://docs.gnark.consensys.io/HowTo/write/circuit_api)
-is properly constrained.
-
-```go
+``` go
 type MyCircuit struct {
 	X, Y frontend.Variable
 }
@@ -71,13 +42,13 @@ func (circuit *MyCircuit) Define(api frontend.API) error {
 }
 ```
 
-We create the entry point file, replace `<PUT-THE-CIRCUIT-TYPE-HERE>` with `MyCircuit`, 
-and put the above circuit implementation at the end.
+After we add annotations, it would become:
 
-Next, we annotate the input and output variables by making the following modification:
+``` go
+type MyCircuit struct {
+	X, Y frontend.Variable
+}
 
-
-```go
 func (circuit *MyCircuit) Define(api frontend.API) error {
 	picus_gnark.CircuitVarIn(circuit.X)
 	picus_gnark.CircuitVarOut(circuit.Y)
@@ -89,7 +60,13 @@ func (circuit *MyCircuit) Define(api frontend.API) error {
 }
 ```
 
-The full content of `picus.go` is now as follows:
+### Compiling the circuit
+
+Call `picus_gnark.CompilePicus` on the circuit to compile it to `sr1cs` constraints. 
+The first argument is the file name to generate.
+The second argument is the circuit.
+And the last argument is the field size.
+For example, your main file `main.go` in your project could look like this:
 
 ```go
 package main
@@ -120,7 +97,13 @@ func (circuit *MyCircuit) Define(api frontend.API) error {
 }
 ```
 
-Running `go run picus.go` should produce the following result:
+Note that the you do not need to write the circuit the main file.
+You can arbitrarily import it (or its components) from other files, 
+like you can normally do in gnark.
+
+### Generating `sr1cs`
+
+Running `go run main.go` should produce the following result:
 
 ```
 12:27:59 INF compiling circuit
@@ -141,6 +124,8 @@ along with the `circuit.sr1cs` file:
 (constraint [(1 0) ] [(1 2) ] [(5 0) (1 1) (1 4) ])
 ```
 
+### Running Picus
+
 This `circuit.sr1cs` can be used with Picus directly. Running `/path/to/run-picus circuit.sr1cs` produces the following result:
 
 ```
@@ -148,10 +133,28 @@ The circuit is properly constrained
 Exiting Picus with the code 8
 ```
 
-On the other hand, if we verify the following circuit instead:
+As another example, if we verify the following `BadCircuit`,
+which asserts that the square of the output signal is equal to the input signal.
 
 ```go
-func (circuit *MyCircuit) Define(api frontend.API) error {
+package main
+
+import (
+	"github.com/Veridise/picus_gnark"
+	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/frontend"
+)
+
+func main() {
+	var circuit BadCircuit
+	picus_gnark.CompilePicus("circuit", &circuit, ecc.BN254.ScalarField())
+}
+
+type BadCircuit struct {
+	X, Y frontend.Variable
+}
+
+func (circuit *BadCircuit) Define(api frontend.API) error {
 	picus_gnark.CircuitVarIn(circuit.X)
 	picus_gnark.CircuitVarOut(circuit.Y)
 	picus_gnark.Label(circuit.X, "X")
@@ -161,10 +164,10 @@ func (circuit *MyCircuit) Define(api frontend.API) error {
 }
 ```
 
-We would obtain an `sr1cs` file that is under-constrained.
+We would obtain an under-constrained `sr1cs` file.
 
 ```bash
-$ go run picus.go
+$ go run main.go
 <elided>
 $ /path/to/run-picus circuit.sr1cs 
 working directory: <elided>
@@ -183,7 +186,7 @@ Counterexample:
 Exiting Picus with the code 9
 ```
 
-## sr1cs format 
+## `sr1cs` format 
 
 As of now, the S-expression R1CS format has the following grammar:
 
